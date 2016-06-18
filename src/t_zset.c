@@ -1472,7 +1472,7 @@ void zremCommand(client *c) {
 #define ZRANGE_RANK 0
 #define ZRANGE_SCORE 1
 #define ZRANGE_LEX 2
-void zremrangeGenericCommand(client *c, int rangetype) {
+void zremrangeGenericCommand(client *c, int rangetype, int silent) {
     robj *key = c->argv[1];
     robj *zobj;
     int keyremoved = 0;
@@ -1488,17 +1488,27 @@ void zremrangeGenericCommand(client *c, int rangetype) {
             return;
     } else if (rangetype == ZRANGE_SCORE) {
         if (zslParseRange(c->argv[2],c->argv[3],&range) != C_OK) {
-            addReplyError(c,"min or max is not a float");
+            if (!silent) {
+                addReplyError(c,"min or max is not a float");
+            }
             return;
         }
     } else if (rangetype == ZRANGE_LEX) {
         if (zslParseLexRange(c->argv[2],c->argv[3],&lexrange) != C_OK) {
-            addReplyError(c,"min or max not valid string range item");
+            if (!silent) {
+                addReplyError(c,"min or max not valid string range item");
+            }
             return;
         }
     }
 
     /* Step 2: Lookup & range sanity checks if needed. */
+    if (silent) {
+      if (lookupKeyWrite(c->db, key) == NULL) {
+          goto cleanup;
+      }
+    }
+
     if ((zobj = lookupKeyWriteOrReply(c,key,shared.czero)) == NULL ||
         checkType(c,zobj,OBJ_ZSET)) goto cleanup;
 
@@ -1512,7 +1522,9 @@ void zremrangeGenericCommand(client *c, int rangetype) {
         /* Invariant: start >= 0, so this test will be true when end < 0.
          * The range is empty when start > end or start >= length. */
         if (start > end || start >= llen) {
-            addReply(c,shared.czero);
+            if (!silent) {
+                addReply(c,shared.czero);
+            }
             goto cleanup;
         }
         if (end >= llen) end = llen-1;
@@ -1566,22 +1578,24 @@ void zremrangeGenericCommand(client *c, int rangetype) {
             notifyKeyspaceEvent(NOTIFY_GENERIC,"del",key,c->db->id);
     }
     server.dirty += deleted;
-    addReplyLongLong(c,deleted);
+    if (!silent) {
+        addReplyLongLong(c,deleted);
+    }
 
 cleanup:
     if (rangetype == ZRANGE_LEX) zslFreeLexRange(&lexrange);
 }
 
 void zremrangebyrankCommand(client *c) {
-    zremrangeGenericCommand(c,ZRANGE_RANK);
+    zremrangeGenericCommand(c,ZRANGE_RANK,0);
 }
 
 void zremrangebyscoreCommand(client *c) {
-    zremrangeGenericCommand(c,ZRANGE_SCORE);
+    zremrangeGenericCommand(c,ZRANGE_SCORE,0);
 }
 
 void zremrangebylexCommand(client *c) {
-    zremrangeGenericCommand(c,ZRANGE_LEX);
+    zremrangeGenericCommand(c,ZRANGE_LEX,0);
 }
 
 typedef struct {
@@ -2285,6 +2299,11 @@ void zrangeCommand(client *c) {
     zrangeGenericCommand(c,0);
 }
 
+void zrangethenremCommand(client *c) {
+    zrangeGenericCommand(c,0);
+    zremrangeGenericCommand(c,ZRANGE_RANK,1);
+}
+
 void zrevrangeCommand(client *c) {
     zrangeGenericCommand(c,1);
 }
@@ -2478,6 +2497,11 @@ void genericZrangebyscoreCommand(client *c, int reverse) {
 
 void zrangebyscoreCommand(client *c) {
     genericZrangebyscoreCommand(c,0);
+}
+
+void zrangebyscorethenremCommand(client *c) {
+    genericZrangebyscoreCommand(c,0);
+    zremrangeGenericCommand(c,ZRANGE_SCORE,1);
 }
 
 void zrevrangebyscoreCommand(client *c) {
