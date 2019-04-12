@@ -27,6 +27,7 @@ RUN adduser --home /home/redis --shell /bin/bash -gecos '' --disabled-password r
 RUN gem install redis -v 3.2
 
 # Install packages
+RUN printf "deb http://archive.debian.org/debian/ jessie main\ndeb-src http://archive.debian.org/debian/ jessie main\ndeb http://security.debian.org jessie/updates main\ndeb-src http://security.debian.org jessie/updates main" > /etc/apt/sources.list
 RUN \
   apt-get update && \
   apt-get -y upgrade && \
