@@ -48,8 +48,8 @@ RUN make && \
     ln -s /home/redis/redis/src/redis-sentinel /usr/local/bin/redis-sentinel && \
     ln -s /home/redis/redis/src/redis-trib.rb /usr/local/bin/redis-trib
 
-RUN mkdir -p /var/redis/data/ && \
-    chown -R redis.redis /var/redis/data/
+RUN mkdir -p /var/redis && \
+    chown -R redis.redis /var/redis
 
 # Config supervisord
 RUN mkdir -p /var/log/supervisor && \
